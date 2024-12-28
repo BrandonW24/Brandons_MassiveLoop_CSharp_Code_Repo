@@ -60,6 +60,9 @@ public class DodgeBallGameManager : MonoBehaviour
     const string EVENT_TELEPORT_PLAYERS_BACK_TO_SPAWN = "TeleportPlayersEvent_BackToSpawn";
     private EventToken tokenTeleportPlayers_backToSpawn;
 
+    const string EVENT_HANDLE_LATE_JOINER = "OnLateJoiner";
+    private EventToken tokenLateJoiner;
+
     public bool isGameActive = false;
 
     public GameObject BluePortal;
@@ -74,11 +77,10 @@ public class DodgeBallGameManager : MonoBehaviour
     private int blueTeamNumberScore;
     private int redTeamNumberScore;
 
+
+
     public void OnStartGameEvent(object[] args)
     {
-
-
-
         GameStatusText.text = "Game Active";
         GameStatusText.color = Color.green;
 
@@ -107,9 +109,9 @@ public class DodgeBallGameManager : MonoBehaviour
 
     public void OnResetBallPosition()
     {
-        foreach( GameObject b in GameBalls)
+        foreach (GameObject b in GameBalls)
         {
-            
+
             if (isGameActive == true)
             {
                 b.transform.position = ResetBallPosition.transform.position;
@@ -123,14 +125,14 @@ public class DodgeBallGameManager : MonoBehaviour
                 rb.isKinematic = true;
 
             }
-           
+
         }
     }
 
     public void OnplayerClickStart(MLPlayer player)
     {
         // Player started the game
-        if(player.GetProperty("team") != null && (string)player.GetProperty("team") != "none" && blueTeam.Count > 0 && redTeam.Count > 0)
+        if (player.GetProperty("team") != null && (string)player.GetProperty("team") != "none" && blueTeam.Count > 0 && redTeam.Count > 0)
         {
             this.InvokeNetwork(EVENT_START_GAME, EventTarget.All, null);
             this.InvokeNetwork(EVENT_TELEPORT_PLAYERS_INTO_ARENA, EventTarget.All, null);
@@ -171,6 +173,9 @@ public class DodgeBallGameManager : MonoBehaviour
         tokenTeleportPlayers = this.AddEventHandler(EVENT_TELEPORT_PLAYERS_INTO_ARENA, OnTeleportPlayers);
         tokenTeleportPlayers_backToSpawn = this.AddEventHandler(EVENT_TELEPORT_PLAYERS_BACK_TO_SPAWN, OnTeleportPlayersBackToSpawn);
 
+        tokenLateJoiner = this.AddEventHandler(EVENT_HANDLE_LATE_JOINER, OnSendInfoToLateJoiner);
+
+        MassiveLoopRoom.OnPlayerJoined += PlayerJoined;
         MassiveLoopRoom.OnPlayerLeft += OnPlayerLeft;
     }
 
@@ -254,7 +259,7 @@ public class DodgeBallGameManager : MonoBehaviour
     {
         MLPlayer localPlayer = MassiveLoopRoom.GetLocalPlayer();
         MLPlayer[] playersArray = MassiveLoopRoom.FindPlayersInCollider(ArenaCollider);
-        
+
 
         // Check if the localPlayer has a valid "team" property
         if (localPlayer.GetProperty("team") != null)
@@ -404,5 +409,46 @@ public class DodgeBallGameManager : MonoBehaviour
         }*/
 
         UpdateTeamText();
+    }
+
+    // The function is triggered when a new player joins
+    private void PlayerJoined(ML.SDK.MLPlayer player)
+    {
+        UnityEngine.Debug.Log($"Player joined: {player.NickName}");
+
+        /* If this is the master client, send the scores to the joined player
+            ideally we want to only have communication between the master client and the newly joined player
+            however, I don't quite know how to do that at this point, this method will be good for now.
+            
+            The idea is that whenever a late joiner joins a dodgeball room that has already had a set number of games played,
+            where multiple games have theoretically been won by either team, they will have scores already set, where the new player
+            wouldn't see those scores upon joining -- both teams would be 0, 0.
+            
+            This solves that problem by making the masterclient respond to the event of a late joiner, the master client then sends
+            the proper scores to that player, and all is good.
+            
+        */
+        if (MassiveLoopClient.IsMasterClient)
+        {
+           this.InvokeNetwork(EVENT_HANDLE_LATE_JOINER, EventTarget.All, null, blueTeamNumberScore, redTeamNumberScore);
+        }
+        else
+        {
+            UnityEngine.Debug.Log($"The master client will handle score synchronization for {player.NickName}.");
+        }
+    }
+
+    // Master client sends the current scores to the newly joined player
+    private void OnSendInfoToLateJoiner(object[] args)
+    {
+
+        int blueTeamScore = (int)args[0];
+        int redTeamScore = (int)args[1];
+
+        UnityEngine.Debug.Log($"Master Client invoked OnSendInfoToLateJoiner. Information retrieved : Blue Team Score : {blueTeamScore},  Red Team Score : {redTeamNumberScore}");
+
+        blueTeamNumberScore = (int)args[0];
+        redTeamNumberScore = (int)args[1];
+
     }
 }
