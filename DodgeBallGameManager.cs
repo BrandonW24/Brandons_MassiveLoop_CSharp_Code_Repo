@@ -450,5 +450,8 @@ public class DodgeBallGameManager : MonoBehaviour
         blueTeamNumberScore = (int)args[0];
         redTeamNumberScore = (int)args[1];
 
+        BlueTeamScore.text = blueTeamNumberScore.ToString();
+        RedTeamScore.text = redTeamNumberScore.ToString();
+
     }
 }
