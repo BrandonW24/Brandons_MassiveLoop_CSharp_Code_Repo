@@ -22,8 +22,14 @@ public class GunScript : MonoBehaviour
     private float nextFireTime = 0f; // Time until the weapon can fire again
     private Vector3 originalWeaponPosition; // Original position of the weapon visual
     private Quaternion originalWeaponRotation; // Original rotation of the weapon visual
-    public float DamageRange_min;
-    public float DamageRange_max;
+    public int DamageRange_min;
+    public int DamageRange_max;
+
+    //This doesn't work yet..
+    public enum ElementalType { Normal, Ice, Lightning, Fire, Poison };
+    public ElementalType ThisGunsElement;
+
+    public string ElementalTypePlaceholder;
 
     public int HeadShotMultiplyer;
 
@@ -92,13 +98,13 @@ public class GunScript : MonoBehaviour
                     {
                         Debug.Log("Headshot detected");
                         Instantiate(HeadShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                        checkForReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer));
+                        checkForReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer), ElementalTypePlaceholder, true);
 
                     }
                     else
                     {
                     //    Instantiate(HitEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                        checkForReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min, DamageRange_max));
+                        checkForReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min, DamageRange_max), ElementalTypePlaceholder, false);
                     }
 
                 }
@@ -106,7 +112,7 @@ public class GunScript : MonoBehaviour
 
             else if (hitGameObject.name.Contains("Head"))
             {
-                Debug.Log("Head hit detected: " + hitGameObject.name);
+             //   Debug.Log("Head hit detected: " + hitGameObject.name);
 
                 // Get the parent of the hit head
                 Transform parentTransform = hitGameObject.transform.parent;
@@ -130,7 +136,7 @@ public class GunScript : MonoBehaviour
 
                             // Headshot logic
                             Instantiate(HeadShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                            enemyReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer));
+                            enemyReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer), ElementalTypePlaceholder, true);
                         }
                         else
                         {
