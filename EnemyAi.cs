@@ -291,11 +291,40 @@ namespace EnemyAi
             }
         }
 
+        public void GetWayPoints(Vector3 waypointOne, Vector3 waypointTwo, Vector3 waypointThree)
+        {
+            Debug.Log("Get Waypoint function called");
+
+            // Create a new Transform array to store the patrol points
+            Transform[] randomPatrolPoints_fromSpawner = new Transform[3];
+
+            // Create GameObjects for each waypoint and assign their positions
+            randomPatrolPoints_fromSpawner[0] = CreateTemporaryWaypoint(waypointOne, "Waypoint_1");
+            randomPatrolPoints_fromSpawner[1] = CreateTemporaryWaypoint(waypointTwo, "Waypoint_2");
+            randomPatrolPoints_fromSpawner[2] = CreateTemporaryWaypoint(waypointThree, "Waypoint_3");
+
+            // Assign the patrol points to the PatrolPoints property
+            this.PatrolPoints = randomPatrolPoints_fromSpawner;
+
+            Debug.Log($"Assigned patrol points: {waypointOne}, {waypointTwo}, {waypointThree}");
+        }
+
+        // Helper function to create a temporary GameObject for a waypoint
+        private Transform CreateTemporaryWaypoint(Vector3 position, string name)
+        {
+            // Create a temporary GameObject to represent the waypoint
+            GameObject tempWaypoint = new GameObject(name);
+            tempWaypoint.transform.position = position;
+          //  tempWaypoint.transform.parent = this.transform; // Optional: Parent it to the AI for organization
+            return tempWaypoint.transform;
+        }
 
         // Update is called once per frame
         void Update()
         {
             if (PlayerCharacter == null) return;
+
+          //  if (!MassiveLoopClient.IsMasterClient) return;
 
             if (IHeardSmothingTime > 0.0f)
             {
