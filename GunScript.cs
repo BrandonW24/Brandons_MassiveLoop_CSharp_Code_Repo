@@ -1,175 +1,288 @@
 using ML.SDK;
-using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class GunScript : MonoBehaviour
 {
     public MLGrab MLGrabComponent;
-    public GameObject ShootPoint; // The point where the raycast originates
-    public GameObject MuzzleFlash; // The muzzle flash effect
-    public GameObject HitEffect; // The hit effect
-    public GameObject weaponVisual; // The weapon visual object for recoil
+    public GameObject ShootPoint;
+    public GameObject DefaultMuzzleFlash;
+    public GameObject HitEffect;
     public GameObject HeadShotEffect;
+    public GameObject weaponVisual;
 
-    public int ammo = 10; // Initial ammo count
-    public float fireRate = 0.2f; // Time between shots
-    public float recoilAmount = 0.1f; // How far back the weapon moves when fired
-    public float upwardRecoilAmount = 0.05f; // How far upward the weapon moves when fired
-    public float recoilAngleRange = 5f; // Maximum angle for random recoil rotation
-    public float recoilResetSpeed = 5f; // Speed at which the weapon returns to its original position
-
-    private float nextFireTime = 0f; // Time until the weapon can fire again
-    private Vector3 originalWeaponPosition; // Original position of the weapon visual
-    private Quaternion originalWeaponRotation; // Original rotation of the weapon visual
+    public int ammo = 10;
+    public float fireRate = 0.2f;
+    public float recoilAmount = 0.1f;
+    public float upwardRecoilAmount = 0.05f;
+    public float recoilAngleRange = 5f;
+    public float recoilResetSpeed = 5f;
     public int DamageRange_min;
     public int DamageRange_max;
+    public int HeadShotMultiplyer;
 
-    //This doesn't work yet..
-    public enum ElementalType { Normal, Ice, Lightning, Fire, Poison };
-    public ElementalType ThisGunsElement;
+    public enum FireMode { Automatic, SemiAutomatic, Shotgun }
+    public FireMode currentFireMode;
+
+    public bool useProjectile = false;
+    public GameObject bulletPrefab;
+    public float projectileForce = 500f;
 
     public string ElementalTypePlaceholder;
 
-    public int HeadShotMultiplyer;
+   // public List<GameObject> ElementalMuzzleFlashes; // List of different muzzle flashes for elemental types
+
+    public GameObject FireMuzzle;
+    public GameObject IceMuzzle;
+    public GameObject NormalMuzzle;
+    public GameObject PoisonMuzzle;
+    public GameObject ThunderMuzzle;
+
+    private float nextFireTime = 0f;
+    private Vector3 originalWeaponPosition;
+    private Quaternion originalWeaponRotation;
+
+    private MLPlayer currentGunUser;
+
+    void OnPrimaryGrabBegin()
+    {
+        currentGunUser = MLGrabComponent.CurrentUser;
+    }
+
+    void OnPrimaryGrabEnd()
+    {
+        currentGunUser = null;
+    }
+
+    void Start()
+    {
+        originalWeaponPosition = weaponVisual.transform.localPosition;
+        originalWeaponRotation = weaponVisual.transform.localRotation;
+        MLGrabComponent.OnPrimaryTriggerDown.AddListener(OnPrimaryTriggerDownFunction);
+        MLGrabComponent.OnPrimaryGrabBegin.AddListener(OnPrimaryGrabBegin);
+        MLGrabComponent.OnPrimaryGrabEnd.AddListener(OnPrimaryGrabEnd);
+    }
+
+    void Update()
+    {
+        weaponVisual.transform.localPosition = Vector3.Lerp(weaponVisual.transform.localPosition, originalWeaponPosition, Time.deltaTime * recoilResetSpeed);
+        weaponVisual.transform.localRotation = Quaternion.Lerp(weaponVisual.transform.localRotation, originalWeaponRotation, Time.deltaTime * recoilResetSpeed);
+
+        if(currentGunUser != null)
+        {
+            if(currentGunUser.UserInput != null)
+            {
+                if (currentGunUser.UserInput.TriggerPress1 == true)
+                {
+
+                    if (Time.time >= nextFireTime && ammo > 0)
+                    {
+                        FireWeapon();
+                    }
+                    else if (ammo <= 0)
+                    {
+                        Debug.Log("Out of ammo!");
+                        Reload();
+                    }
+                    //Debug.Log("user is pressing trigger");
+
+                }
+            }
+
+            
+        }
+    }
+
+    void OnPrimaryTriggerDownFunction()
+    {
+        /*
+        if (Time.time >= nextFireTime && ammo > 0)
+        {
+            switch (currentFireMode)
+            {
+                case FireMode.Automatic:
+                    StartCoroutine(FireAutomatic());
+                    break;
+                case FireMode.SemiAutomatic:
+                    FireWeapon();
+                    break;
+                case FireMode.Shotgun:
+                    FireShotgun();
+                    break;
+            }
+        }
+        else if (ammo <= 0)
+        {
+            Debug.Log("Out of ammo!");
+            Reload();
+        }*/
+    }
 
     void Reload()
     {
         ammo = 10;
     }
 
-    void Start()
+    IEnumerator FireAutomatic()
     {
-        // Store the weapon's original position and rotation
-        originalWeaponPosition = weaponVisual.transform.localPosition;
-        originalWeaponRotation = weaponVisual.transform.localRotation;
-
-        // Add listener to the OnPrimaryTriggerDown event
-        MLGrabComponent.OnPrimaryTriggerDown.AddListener(OnPrimaryTriggerDownFunction);
-    }
-
-    void Update()
-    {
-        // Smoothly reset weapon recoil to the original position and rotation
-        weaponVisual.transform.localPosition = Vector3.Lerp(weaponVisual.transform.localPosition, originalWeaponPosition, Time.deltaTime * recoilResetSpeed);
-        weaponVisual.transform.localRotation = Quaternion.Lerp(weaponVisual.transform.localRotation, originalWeaponRotation, Time.deltaTime * recoilResetSpeed);
-    }
-
-    void OnPrimaryTriggerDownFunction()
-    {
-        // Check if the weapon can fire
-        if (Time.time >= nextFireTime && ammo > 0)
+        while (ammo > 0 && Time.time >= nextFireTime)
         {
             FireWeapon();
+            yield return new WaitForSeconds(fireRate);
         }
-        else if (ammo <= 0)
+    }
+
+    void FireShotgun()
+    {
+        int pellets = 8; // Number of pellets in the shotgun blast
+        for (int i = 0; i < pellets; i++)
         {
-            Debug.Log("Out of ammo!");
-            Reload();
+            Vector3 spread = ShootPoint.transform.forward +
+                             new Vector3(Random.Range(-0.1f, 0.1f), Random.Range(-0.1f, 0.1f), 0);
+            ProcessHit(ShootPoint.transform.position, spread.normalized);
         }
+
+        ApplyRecoil();
+        InstantiateMuzzleFlash();
     }
 
     void FireWeapon()
     {
-        // Update the time for the next allowed shot
         nextFireTime = Time.time + fireRate;
-
-        // Decrease ammo count
         ammo--;
 
-        // Raycast from the shoot point
-        RaycastHit hit;
-        if (Physics.Raycast(ShootPoint.transform.position, ShootPoint.transform.forward, out hit))
+        if (useProjectile)
         {
-            // Instantiate the hit effect at the point of impact
-            Instantiate(HitEffect, hit.point, Quaternion.LookRotation(hit.normal));
-            Debug.Log("Hit: " + hit.collider.name);
-            var hitGameObject = hit.collider.gameObject;
-            if (hitGameObject.name.Contains("Enemy"))
+            GameObject bullet = Instantiate(bulletPrefab, ShootPoint.transform.position, ShootPoint.transform.rotation);
+            Rigidbody rb = bullet.GetComponent<Rigidbody>();
+            if (rb != null)
             {
-                Debug.Log($"Enemy hit! Part : {hitGameObject.name}");
-                EnemyAi.EnemyAi checkForReference = (EnemyAi.EnemyAi)hitGameObject.GetComponent(typeof(EnemyAi.EnemyAi));
-                if (checkForReference != null)
-                {
-                    
-                  //  checkForReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min, DamageRange_max));
-
-                    if (hitGameObject.name.Contains("Head"))
-                    {
-                        Debug.Log("Headshot detected");
-                        Instantiate(HeadShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                        checkForReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer), ElementalTypePlaceholder, true);
-
-                    }
-                    else
-                    {
-                    //    Instantiate(HitEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                        checkForReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min, DamageRange_max), ElementalTypePlaceholder, false);
-                    }
-
-                }
+                rb.AddForce(ShootPoint.transform.forward * projectileForce, ForceMode.Impulse);
             }
 
-            else if (hitGameObject.name.Contains("Head"))
+            // Assign the elemental type and damage values to the projectile
+            Projectile projectileScript = bullet.GetComponent(typeof(Projectile)) as Projectile;
+            if (projectileScript != null)
             {
-             //   Debug.Log("Head hit detected: " + hitGameObject.name);
-
-                // Get the parent of the hit head
-                Transform parentTransform = hitGameObject.transform.parent;
-
-                if (parentTransform != null)
-                {
-                    // Traverse all the way up to the root parent (overall parent)
-                    while (parentTransform.parent != null)
-                    {
-                        parentTransform = parentTransform.parent;
-                    }
-
-                    // At this point, parentTransform is the overall parent of the head GameObject
-                    if (parentTransform != null)
-                    {
-                        // Check if the parent has the EnemyAi component
-                        EnemyAi.EnemyAi enemyReference = (EnemyAi.EnemyAi)parentTransform.GetComponent(typeof(EnemyAi.EnemyAi));
-                        if (enemyReference != null)
-                        {
-                            Debug.Log("Overall parent EnemyAi found for the head!");
-
-                            // Headshot logic
-                            Instantiate(HeadShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                            enemyReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer), ElementalTypePlaceholder, true);
-                        }
-                        else
-                        {
-                            Debug.LogWarning("Overall parent does not have an EnemyAi script!");
-                        }
-                    }
-                    else
-                    {
-                        Debug.LogWarning("Failed to find the top-level parent!");
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning("Head does not have a parent!");
-                }
+                projectileScript.Initialize(DamageRange_min, DamageRange_max, ElementalTypePlaceholder, HeadShotMultiplyer, HitEffect, HeadShotEffect);
             }
 
         }
+        else
+        {
+            ProcessHit(ShootPoint.transform.position, ShootPoint.transform.forward);
+        }
 
-        // Instantiate the muzzle flash effect at the shoot point
-        Instantiate(MuzzleFlash, ShootPoint.transform.position, ShootPoint.transform.rotation);
+        ApplyRecoil();
+        InstantiateMuzzleFlash();
+    }
 
-        // Apply recoil to the weapon visual
+    void ProcessHit(Vector3 origin, Vector3 direction)
+    {
+        if (Physics.Raycast(origin, direction, out RaycastHit hit))
+        {
+            Instantiate(HitEffect, hit.point, Quaternion.LookRotation(hit.normal));
+            var hitGameObject = hit.collider.gameObject;
+
+            if (hitGameObject.name.Contains("Enemy"))
+            {
+                HandleEnemyHit(hitGameObject, hit);
+            }
+            else if (hitGameObject.name.Contains("Head"))
+            {
+                HandleHeadshot(hitGameObject, hit);
+            }
+        }
+    }
+
+    void HandleEnemyHit(GameObject enemy, RaycastHit hit)
+    {
+        EnemyAi.EnemyAi checkForReference = (EnemyAi.EnemyAi)enemy.GetComponent(typeof(EnemyAi.EnemyAi));
+        if (checkForReference != null)
+        {
+            bool isHeadshot = enemy.name.Contains("Head");
+            int damage = isHeadshot
+                ? Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer)
+                : Random.Range(DamageRange_min, DamageRange_max);
+
+            if (isHeadshot)
+            {
+                Instantiate(HeadShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
+            }
+
+            checkForReference.EnemyDamage(damage, ElementalTypePlaceholder, isHeadshot);
+        }
+    }
+
+    void HandleHeadshot(GameObject head, RaycastHit hit)
+    {
+        Transform parentTransform = head.transform.parent;
+        while (parentTransform?.parent != null)
+        {
+            parentTransform = parentTransform.parent;
+        }
+
+        if (parentTransform != null)
+        {
+            EnemyAi.EnemyAi enemyReference = (EnemyAi.EnemyAi)parentTransform.GetComponent(typeof(EnemyAi.EnemyAi));
+            if (enemyReference != null)
+            {
+                Instantiate(HeadShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
+                int damage = Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer);
+                enemyReference.EnemyDamage(damage, ElementalTypePlaceholder, true);
+            }
+        }
+    }
+
+    void ApplyRecoil()
+    {
         weaponVisual.transform.localPosition -= new Vector3(0, upwardRecoilAmount, recoilAmount);
-
-        // Apply a random recoil angle
-        float randomAngle = UnityEngine.Random.Range(-recoilAngleRange, recoilAngleRange);
+        float randomAngle = Random.Range(-recoilAngleRange, recoilAngleRange);
         weaponVisual.transform.localRotation *= Quaternion.Euler(-randomAngle, randomAngle, 0);
     }
 
+    void InstantiateMuzzleFlash()
+    {
+        GameObject muzzleFlash = DefaultMuzzleFlash;
+
+        /*
+        // Select an elemental muzzle flash if available
+        foreach (GameObject flash in ElementalMuzzleFlashes)
+        {
+            if (flash.name.Contains(ElementalTypePlaceholder))
+            {
+                muzzleFlash = flash;
+                break;
+            }
+        }
+        */
+
+        switch (this.ElementalTypePlaceholder)
+        {
+            case "Fire":
+                muzzleFlash = FireMuzzle;
+                break;
+            case "Ice":
+                muzzleFlash = IceMuzzle;
+                break;
+            case "Poison":
+                muzzleFlash = PoisonMuzzle;
+                break;
+            case "Thunder":
+                muzzleFlash = ThunderMuzzle;
+                break;
+            default:
+                muzzleFlash = NormalMuzzle; // Default to NormalMuzzle if no match
+                break;
+        }
+
+        Instantiate(muzzleFlash, ShootPoint.transform.position, ShootPoint.transform.rotation);
+    }
+
+
     void OnDestroy()
     {
-        // Always unsubscribe from events to prevent memory leaks
         MLGrabComponent.OnPrimaryTriggerDown.RemoveListener(OnPrimaryTriggerDownFunction);
     }
 }
