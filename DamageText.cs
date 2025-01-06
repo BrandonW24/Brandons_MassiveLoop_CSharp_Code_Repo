@@ -6,8 +6,11 @@ public class DamageText : MonoBehaviour
     public float flyDuration = 1f;  // Duration to fly up
     public float fadeDuration = 1f; // Duration to fade out
     public float flyHeight = 1.5f;  // How high the damage number flies
+    public float flyHorizontalRange = 1f; // Range for random horizontal offset
+
     private TextMeshPro damageText;
     private Vector3 startPos;
+    private Vector3 randomOffset; // Randomized direction
     private float startTime;
     private bool isFading = false;
 
@@ -21,6 +24,13 @@ public class DamageText : MonoBehaviour
     {
         // Store the starting position of the damage number
         startPos = transform.position;
+
+        // Generate a random horizontal offset
+        randomOffset = new Vector3(
+            Random.Range(-flyHorizontalRange, flyHorizontalRange),
+            Random.Range(0.5f, 1f),  // Ensure it moves slightly upwards
+            Random.Range(-flyHorizontalRange, flyHorizontalRange)
+        );
 
         // Get the TextMeshPro component
         damageText = GetComponent<TextMeshPro>();
@@ -39,11 +49,11 @@ public class DamageText : MonoBehaviour
         // Handle the flying and fading effect
         if (!isFading)
         {
-            // Fly up over time
+            // Fly in a randomized direction over time
             float elapsedTime = Time.time - startTime;
             if (elapsedTime < flyDuration)
             {
-                transform.position = startPos + Vector3.up * (flyHeight * (elapsedTime / flyDuration));
+                transform.position = startPos + randomOffset * (elapsedTime / flyDuration) + Vector3.up * (flyHeight * (elapsedTime / flyDuration));
             }
             else
             {
@@ -63,8 +73,8 @@ public class DamageText : MonoBehaviour
                 color.a = alpha;
                 damageText.color = color;
 
-                // Slowly fall down as it fades
-                transform.position = startPos + Vector3.up * (flyHeight * (1 - (fadeElapsedTime / fadeDuration)));
+                // Continue flying slightly as it fades
+                transform.position = startPos + randomOffset * (1 - (fadeElapsedTime / fadeDuration)) + Vector3.up * (flyHeight * (1 - (fadeElapsedTime / fadeDuration)));
             }
             else
             {
