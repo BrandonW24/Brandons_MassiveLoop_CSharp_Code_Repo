@@ -11,8 +11,10 @@ public class GunScript : MonoBehaviour
     public GameObject HitEffect;
     public GameObject HeadShotEffect;
     public GameObject weaponVisual;
+    public GameObject ProjectileHitEffect;
 
     public int ammo = 10;
+    public int MaxAmmo;
     public float fireRate = 0.2f;
     public float recoilAmount = 0.1f;
     public float upwardRecoilAmount = 0.05f;
@@ -21,9 +23,17 @@ public class GunScript : MonoBehaviour
     public int DamageRange_min;
     public int DamageRange_max;
     public int HeadShotMultiplyer;
+    public float reloadTime = 2f; // Time it takes to reload
+    public float spinSpeed = 360f; // Speed of the spin (degrees per second)
+    private bool isReloading = false;
+
+    [SerializeField]
+    public float spreadAmount = 2.1f; // Adjustable spread value through the Inspector
 
     public enum FireMode { Automatic, SemiAutomatic, Shotgun }
     public FireMode currentFireMode;
+
+    public string FireMode_PlaceHolder;
 
     public bool useProjectile = false;
     public GameObject bulletPrefab;
@@ -39,11 +49,14 @@ public class GunScript : MonoBehaviour
     public GameObject PoisonMuzzle;
     public GameObject ThunderMuzzle;
 
+
     private float nextFireTime = 0f;
     private Vector3 originalWeaponPosition;
     private Quaternion originalWeaponRotation;
 
     private MLPlayer currentGunUser;
+    private bool isFiring = false;
+    private bool triggerHeld = false;
 
     void OnPrimaryGrabBegin()
     {
@@ -66,33 +79,59 @@ public class GunScript : MonoBehaviour
 
     void Update()
     {
+        // Smoothly reset weapon visual position and rotation
         weaponVisual.transform.localPosition = Vector3.Lerp(weaponVisual.transform.localPosition, originalWeaponPosition, Time.deltaTime * recoilResetSpeed);
         weaponVisual.transform.localRotation = Quaternion.Lerp(weaponVisual.transform.localRotation, originalWeaponRotation, Time.deltaTime * recoilResetSpeed);
 
-        if(currentGunUser != null)
+        if (currentGunUser != null && currentGunUser.UserInput != null)
         {
-            if(currentGunUser.UserInput != null)
+            // Handle TriggerPress1
+            if (currentGunUser.UserInput.TriggerPress1)
             {
-                if (currentGunUser.UserInput.TriggerPress1 == true)
+                if (Time.time >= nextFireTime && ammo > 0)
                 {
-
-                    if (Time.time >= nextFireTime && ammo > 0)
+                    switch (FireMode_PlaceHolder)
                     {
-                        FireWeapon();
-                    }
-                    else if (ammo <= 0)
-                    {
-                        Debug.Log("Out of ammo!");
-                        Reload();
-                    }
-                    //Debug.Log("user is pressing trigger");
+                        case "Automatic":
+                            if (!isFiring)
+                            {
+                                isFiring = true; // Start firing automatically
+                                StartCoroutine(FireAutomatic());
+                            }
+                            break;
 
+                        case "SemiAutomatic":
+                            if (!triggerHeld)
+                            {
+                                triggerHeld = true; // Ensure one fire per click
+                                FireWeapon();
+                            }
+                            break;
+
+                        case "Shotgun":
+                            if (!triggerHeld)
+                            {
+                                triggerHeld = true; // Ensure one fire per click
+                                FireShotgun();
+                            }
+                            break;
+                    }
+                }
+                else if (ammo <= 0)
+                {
+                    Debug.Log("Out of ammo!");
+                    Reload();
                 }
             }
-
-            
+            else
+            {
+                // Stop automatic firing when the trigger is released
+                isFiring = false;
+                triggerHeld = false;
+            }
         }
     }
+
 
     void OnPrimaryTriggerDownFunction()
     {
@@ -121,12 +160,39 @@ public class GunScript : MonoBehaviour
 
     void Reload()
     {
-        ammo = 10;
+        if (isReloading) return; // Prevent multiple reloads at once
+
+        StartCoroutine(ReloadRoutine());
+    }
+
+    IEnumerator ReloadRoutine()
+    {
+        isReloading = true;
+
+        float elapsedTime = 0f;
+        Vector3 originalRotation = weaponVisual.transform.localEulerAngles;
+
+        // Spin the weaponVisual during reload
+        while (elapsedTime < reloadTime)
+        {
+            float rotationAmount = spinSpeed * Time.deltaTime;
+            weaponVisual.transform.Rotate(Vector3.right, rotationAmount, Space.Self);
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        // Reset rotation (optional: comment this out if you want to keep the rotation continuous)
+        weaponVisual.transform.localEulerAngles = originalRotation;
+
+        // Complete the reload
+        ammo = MaxAmmo;
+
+        isReloading = false;
     }
 
     IEnumerator FireAutomatic()
     {
-        while (ammo > 0 && Time.time >= nextFireTime)
+        while (isFiring && ammo > 0)
         {
             FireWeapon();
             yield return new WaitForSeconds(fireRate);
@@ -138,8 +204,11 @@ public class GunScript : MonoBehaviour
         int pellets = 8; // Number of pellets in the shotgun blast
         for (int i = 0; i < pellets; i++)
         {
-            Vector3 spread = ShootPoint.transform.forward +
-                             new Vector3(Random.Range(-0.1f, 0.1f), Random.Range(-0.1f, 0.1f), 0);
+            // Calculate spread based on the spreadAmount
+            Vector3 spread = ShootPoint.transform.forward + new Vector3(
+                Random.Range(-spreadAmount, spreadAmount),
+                Random.Range(-spreadAmount, spreadAmount),
+                0);
             ProcessHit(ShootPoint.transform.position, spread.normalized);
         }
 
@@ -156,6 +225,15 @@ public class GunScript : MonoBehaviour
         {
             GameObject bullet = Instantiate(bulletPrefab, ShootPoint.transform.position, ShootPoint.transform.rotation);
             Rigidbody rb = bullet.GetComponent<Rigidbody>();
+            Collider bulletCollider = bullet.GetComponent<Collider>();
+            Collider gunCollider = GetComponentInChildren<Collider>(); // Assuming the gun has a collider attached to one of its children
+
+            if (bulletCollider != null && gunCollider != null)
+            {
+                Physics.IgnoreCollision(bulletCollider, gunCollider);
+                Physics.IgnoreCollision(bulletCollider, this.gameObject.GetComponent<Collider>());
+            }
+
             if (rb != null)
             {
                 rb.AddForce(ShootPoint.transform.forward * projectileForce, ForceMode.Impulse);
@@ -165,9 +243,8 @@ public class GunScript : MonoBehaviour
             Projectile projectileScript = bullet.GetComponent(typeof(Projectile)) as Projectile;
             if (projectileScript != null)
             {
-                projectileScript.Initialize(DamageRange_min, DamageRange_max, ElementalTypePlaceholder, HeadShotMultiplyer, HitEffect, HeadShotEffect);
+                projectileScript.Initialize(DamageRange_min, DamageRange_max, ElementalTypePlaceholder, HeadShotMultiplyer, ProjectileHitEffect, HeadShotEffect);
             }
-
         }
         else
         {
@@ -178,11 +255,21 @@ public class GunScript : MonoBehaviour
         InstantiateMuzzleFlash();
     }
 
+
     void ProcessHit(Vector3 origin, Vector3 direction)
     {
         if (Physics.Raycast(origin, direction, out RaycastHit hit))
         {
-            Instantiate(HitEffect, hit.point, Quaternion.LookRotation(hit.normal));
+            // Instantiate the hit effect
+            GameObject instantiatedHitEffect = Instantiate(HitEffect, hit.point, Quaternion.LookRotation(hit.normal));
+
+            
+
+            // Destroy the hit effect after a delay
+            float destroyDelay = 2.0f; // Adjust this delay as needed
+            Destroy(instantiatedHitEffect, destroyDelay);
+
+            // Process the hit target
             var hitGameObject = hit.collider.gameObject;
 
             if (hitGameObject.name.Contains("Enemy"))
@@ -195,6 +282,7 @@ public class GunScript : MonoBehaviour
             }
         }
     }
+
 
     void HandleEnemyHit(GameObject enemy, RaycastHit hit)
     {
@@ -246,18 +334,6 @@ public class GunScript : MonoBehaviour
     {
         GameObject muzzleFlash = DefaultMuzzleFlash;
 
-        /*
-        // Select an elemental muzzle flash if available
-        foreach (GameObject flash in ElementalMuzzleFlashes)
-        {
-            if (flash.name.Contains(ElementalTypePlaceholder))
-            {
-                muzzleFlash = flash;
-                break;
-            }
-        }
-        */
-
         switch (this.ElementalTypePlaceholder)
         {
             case "Fire":
@@ -277,7 +353,14 @@ public class GunScript : MonoBehaviour
                 break;
         }
 
-        Instantiate(muzzleFlash, ShootPoint.transform.position, ShootPoint.transform.rotation);
+        // Instantiate the muzzle flash
+        GameObject instantiatedFlash = Instantiate(muzzleFlash, ShootPoint.transform.position, ShootPoint.transform.rotation);
+
+        instantiatedFlash.transform.parent = this.gameObject.transform;
+
+        // Destroy the muzzle flash after a delay
+        float destroyDelay = 1.0f; // Adjust the delay as needed
+        Destroy(instantiatedFlash, destroyDelay);
     }
 
 
