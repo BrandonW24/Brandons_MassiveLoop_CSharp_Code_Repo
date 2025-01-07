@@ -58,9 +58,26 @@ public class GunScript : MonoBehaviour
     private bool isFiring = false;
     private bool triggerHeld = false;
 
+    private string hand_L_Or_R;
+
     void OnPrimaryGrabBegin()
     {
         currentGunUser = MLGrabComponent.CurrentUser;
+
+        Debug.Log($"Hand : {MLGrabComponent.PrimaryHand}");
+
+        // Convert PrimaryHand to string and check if it's not null or empty
+        string primaryHandString = MLGrabComponent.PrimaryHand.ToString();
+        if (!string.IsNullOrEmpty(primaryHandString))
+        {
+            // Extract the first character and convert it back to string if needed
+            hand_L_Or_R = primaryHandString[0].ToString();
+            Debug.Log($"Hand L or R: {hand_L_Or_R}");
+        }
+        else
+        {
+            Debug.LogWarning("MLGrabComponent.PrimaryHand is null or empty!");
+        }
     }
 
     void OnPrimaryGrabEnd()
@@ -86,7 +103,82 @@ public class GunScript : MonoBehaviour
         if (currentGunUser != null && currentGunUser.UserInput != null)
         {
             // Handle TriggerPress1
-            if (currentGunUser.UserInput.TriggerPress1)
+            if (currentGunUser.UserInput.TriggerPress1 && MassiveLoopClient.IsInDesktopMode)
+            {
+                if (Time.time >= nextFireTime && ammo > 0)
+                {
+                    switch (FireMode_PlaceHolder)
+                    {
+                        case "Automatic":
+                            if (!isFiring)
+                            {
+                                isFiring = true; // Start firing automatically
+                                StartCoroutine(FireAutomatic());
+                            }
+                            break;
+
+                        case "SemiAutomatic":
+                            if (!triggerHeld)
+                            {
+                                triggerHeld = true; // Ensure one fire per click
+                                FireWeapon();
+                            }
+                            break;
+
+                        case "Shotgun":
+                            if (!triggerHeld)
+                            {
+                                triggerHeld = true; // Ensure one fire per click
+                                FireShotgun();
+                            }
+                            break;
+                    }
+                }
+                else if (ammo <= 0)
+                {
+                    Debug.Log("Out of ammo!");
+                    Reload();
+                }
+                //handle vr mode case, TODO, add in  functionality that tells which hand is the main grab hand
+            }
+            else if (currentGunUser.UserInput.TriggerPress2 && !MassiveLoopClient.IsInDesktopMode && hand_L_Or_R == "R")
+            {
+                if (Time.time >= nextFireTime && ammo > 0)
+                {
+                    switch (FireMode_PlaceHolder)
+                    {
+                        case "Automatic":
+                            if (!isFiring)
+                            {
+                                isFiring = true; // Start firing automatically
+                                StartCoroutine(FireAutomatic());
+                            }
+                            break;
+
+                        case "SemiAutomatic":
+                            if (!triggerHeld)
+                            {
+                                triggerHeld = true; // Ensure one fire per click
+                                FireWeapon();
+                            }
+                            break;
+
+                        case "Shotgun":
+                            if (!triggerHeld)
+                            {
+                                triggerHeld = true; // Ensure one fire per click
+                                FireShotgun();
+                            }
+                            break;
+                    }
+                }
+                else if (ammo <= 0)
+                {
+                    Debug.Log("Out of ammo!");
+                    Reload();
+                }
+            }
+            else if (currentGunUser.UserInput.TriggerPress1 && !MassiveLoopClient.IsInDesktopMode && hand_L_Or_R == "L")
             {
                 if (Time.time >= nextFireTime && ammo > 0)
                 {
