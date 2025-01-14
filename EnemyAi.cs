@@ -85,8 +85,8 @@ namespace EnemyAi
 
         public AudioClip[] VoiceActing_Clips;
 
-        public float Health = 100.0f;
-        bool Death = false;
+        private float Health = 100.0f;
+        private bool Death = false;
         bool IHeardSmothing = false;
 
         float IHeardSmothingTime = 0.0f;
@@ -118,6 +118,12 @@ namespace EnemyAi
         public GameObject BloodVFX;
 
         private bool hasbeenHeadshot = false;
+
+        const string EVENT_ENEMY_DIE = "EventEnemyDeath";
+        private EventToken tokenDeathEnemy;
+
+        private int MostRecentDamageNumber;
+
         private IEnumerator WaitForSeconds(float duration)
         {
             yield return new WaitForSeconds(duration);
@@ -199,6 +205,34 @@ namespace EnemyAi
             // Additional initialization logic if needed
         }
 
+        private void OnEnemyDeath(object[] args)
+        {
+            Debug.Log($"Damage dealt to enemy : {args[0]}");
+            MostRecentDamageNumber = (int)args[0];
+
+            // Now apply the damage to the enemy
+            //    this.Health -= (int)args[0];
+            //    this.Check = true;
+            // Debug.Log($"Damage dealt to enemy: {Damage}");
+        }
+
+
+        private static readonly string[] namePrefixes =
+{
+        "Shadow", "Inferno", "Venom", "Specter", "Rogue",
+        "Phantom", "Blight", "Warden", "Havoc", "Dread"
+        };
+
+        public string GenerateEnemyName()
+        {
+            
+            string prefix = namePrefixes[UnityEngine.Random.Range(0, namePrefixes.Length)];
+            int randomNumber = UnityEngine.Random.Range(0, 1000000); // Generates a random number between 0 and 999999
+            return $"{prefix}_{randomNumber:D6}_Enemy"; // Appends the number as a zero-padded 6-digit string
+        }
+
+        private string UniqueName;
+
         // Start is called before the first frame update
         void Start()
         {
@@ -206,6 +240,11 @@ namespace EnemyAi
             Anim = GetComponent<Animator>();
             agent = GetComponent<NavMeshAgent>();
             Debug.Log("Retrieving PatrolPoints");
+
+            tokenDeathEnemy = this.AddEventHandler(EVENT_ENEMY_DIE, OnEnemyDeath);
+
+            this.gameObject.name = GenerateEnemyName();
+            Debug.Log($"Assigned unique name : {this.gameObject.name}");
 
             if (PatrolPoints == null || PatrolPoints.Length == 0)
             {
@@ -339,8 +378,10 @@ namespace EnemyAi
 
             }
 
-
-            DistanceToStone = Vector3.Distance(Vector3ToStone, transform.position);
+            if(MassiveLoopClient.IsMasterClient)
+            {
+                DistanceToStone = Vector3.Distance(Vector3ToStone, transform.position);
+            }
 
             HealthBarUI.fillAmount = Suspicion / 100;
 
@@ -357,7 +398,18 @@ namespace EnemyAi
                 Anim.SetBool("Idle_2", true);
             }
 
-
+            //TODO :
+            /*
+             * Self Note this is OK to keep as it is. But we do need to create
+             * a synchronized set of functions that will set these values
+             * for when other players kill the enemy.
+             * 
+             * The idea is that when THEY kill the enemy, the enemy will need to
+             * call the network function EventTarget.All to update all the other players
+             * of this NPC's demise.
+             * 
+             * Should be easy enough to implement, I am just feeling lazy at the moment. :P
+             */
             if (Health <= 0.0f)
             {
                 if (hasbeenHeadshot)
@@ -374,8 +426,29 @@ namespace EnemyAi
                 dissolveValue = Mathf.Clamp01(dissolveValue); // Ensure it stays between 0 and 1
                 ApplyDissolveValue(dissolveValue);
 
+               // Debug.Log("Invoke network death");
+           //     this.InvokeNetwork(EVENT_ENEMY_DIE, EventTarget.All, null, this.gameObject.GetInstanceID());
 
                 this.gameObject.GetComponent<CapsuleCollider>().enabled = false;
+              //  this.gameObject.GetComponent<MLSynchronizer>().enabled = false;
+             //   this.gameObject.GetComponent<TransformSyncModule>().enabled = false;
+
+                if (!MassiveLoopClient.IsMasterClient)
+                {
+                 //   Debug.Log("Checking all child rigidbodies to ensure they are not kinematic.");
+
+                    // Get all Rigidbody components in children of this GameObject
+                    Rigidbody[] childRigidbodies = GetComponentsInChildren<Rigidbody>();
+
+                    foreach (Rigidbody rb in childRigidbodies)
+                    {
+                        if (rb.isKinematic)
+                        {
+                 //           Debug.LogWarning($"Rigidbody on {rb.gameObject.name} is kinematic. Setting it to non-kinematic.");
+                            rb.isKinematic = false; // Make the Rigidbody non-kinematic
+                        }
+                    }
+                }
 
                 Anim.SetInteger("DeathRandom", Random.Range(0, 3));
                 Anim.SetTrigger("Death");
@@ -492,7 +565,7 @@ namespace EnemyAi
             if (Death == false)
 
             {
-
+               // CloudVariables.PushEvent
                 LookAtTarget();
                 LookAtNotSing();
                 SeePlayer();
@@ -500,6 +573,7 @@ namespace EnemyAi
             //    HearingRange();
             }
             ////////////////  Distance btween target and enemy
+
             DistanceToPlayer = Vector3.Distance(PlayerCharacter.PlayerRoot.transform.position, transform.position);
 
             ////////////////  Angle or SightSystem /////////////////////////////////
@@ -560,7 +634,7 @@ namespace EnemyAi
             if (DistanceToPlayer < 1.0f)
             {
                 Check = true;
-                Debug.Log($"AI is very close to player Check bool : {Check}");
+            //    Debug.Log($"AI is very close to player Check bool : {Check}");
             }
 
 
@@ -588,8 +662,9 @@ namespace EnemyAi
             }
 
 
-
-            if (IHeardSmothing == false)
+            if (MassiveLoopClient.IsMasterClient)
+            {
+                if (IHeardSmothing == false)
             {
                 agent.SetDestination(Target.position);
 
@@ -706,7 +781,7 @@ namespace EnemyAi
                 Reload();
             }
 
-
+            }
 
 
             /////////////////////// Read to Hearing ///////////////////////////////////
@@ -978,11 +1053,13 @@ namespace EnemyAi
         void LateUpdate()
         {
             if (PlayerCharacter == null) return;
+           
+            
             if (Check && !Death)
             {
                 if (TargetTransform == null || aimTransform == null)
                 {
-                    Debug.LogError("TargetTransform or aimTransform is null in LateUpdate!");
+                //    Debug.LogError("TargetTransform or aimTransform is null in LateUpdate!");
                     TargetTransform = PlayerCharacter.PlayerRoot.transform;
                     aimTransform = Pos;
                     PlayerName = PlayerCharacter.NickName;
@@ -1159,89 +1236,100 @@ namespace EnemyAi
         public void EnemyDamage(int Damage, string DamageType, bool isHeadShot)
         {
             // Instantiate the damage number prefab at the HealthBarUI position
-            GameObject damageTextObject = Instantiate(DamageNumber, HealthBarUI.transform.position, Quaternion.identity);
+            //   if (MassiveLoopClient.IsMasterClient)
+            //   {
 
-            Debug.Log($"Damage type : {DamageType}");
-
-            // Set the damage number text
-            TextMeshPro damageText = damageTextObject.GetComponent<TextMeshPro>();
-            if (damageText != null)
+            if (MassiveLoopClient.IsMasterClient)
             {
-                /* This is for the Enums but that can't be used yet.
-                switch (DamageType)
-                {
-                    case ElementalType.Normal:
-                        damageText.color = Color.white;
-                        break;
-
-                    case ElementalType.Fire:
-                        damageText.color = Color.yellow;
-                        break;
-
-                    case ElementalType.Ice:
-                        damageText.color = Color.cyan;
-                        break;
-                    case ElementalType.Lightning:
-                        damageText.color = Color.HSVToRGB(0.75f, 1f, 1f); // Purple in HSV
-                        break;
-                    case ElementalType.Poison:
-                        damageText.color = Color.green;
-                        break;
-
-                    default:
-                        Debug.LogWarning($"Unhandled damage type: {DamageType}");
-                        damageText.color = Color.white; // Default color fallback
-                        break;
-                }
-                */
-
-                switch (DamageType)
-                {
-                    case "Normal":
-                        damageText.color = Color.white;
-                        break;
-
-                    case "Fire":
-                        damageText.color = Color.yellow;
-                        break;
-
-                    case "Ice":
-                        damageText.color = Color.cyan;
-                        break;
-
-                    case "Lightning":
-                        damageText.color = Color.HSVToRGB(0.75f, 1f, 1f); // Purple in HSV
-                        break;
-
-                    case "Poison":
-                        damageText.color = Color.green;
-                        break;
-
-                    default:
-                        Debug.LogWarning($"Unhandled damage type: {DamageType}");
-                        damageText.color = Color.white; // Default color fallback
-                        break;
-                }
-
-                if (isHeadShot)
-                {
-                    damageText.color = Color.red; // Default color fallback
-                    hasbeenHeadshot = true;
-
-                }
-
-                damageText.text = Damage.ToString();
-                Debug.Log($"Damage displayed: {damageText.text}");
+                this.InvokeNetwork(EVENT_ENEMY_DIE, EventTarget.All, null, Damage);
             }
-            else
-            {
-                Debug.LogWarning("DamageNumber prefab does not have a TextMeshPro component.");
-            }
+               // this.InvokeNetwork(EVENT_ENEMY_DIE, EventTarget.Others, null, Damage, DamageType, isHeadShot, this.gameObject.name);
 
-            // Now apply the damage to the enemy
-            Health -= Damage;
-            Check = true;
-            Debug.Log($"Damage dealt to enemy: {Damage}");
+                GameObject damageTextObject = Instantiate(DamageNumber, HealthBarUI.transform.position, Quaternion.identity);
+
+                // Debug.Log($"Damage type : {DamageType}");
+
+                // Set the damage number text
+                TextMeshPro damageText = damageTextObject.GetComponent<TextMeshPro>();
+                if (damageText != null)
+                {
+                    /* This is for the Enums but that can't be used yet.
+                    switch (DamageType)
+                    {
+                        case ElementalType.Normal:
+                            damageText.color = Color.white;
+                            break;
+
+                        case ElementalType.Fire:
+                            damageText.color = Color.yellow;
+                            break;
+
+                        case ElementalType.Ice:
+                            damageText.color = Color.cyan;
+                            break;
+                        case ElementalType.Lightning:
+                            damageText.color = Color.HSVToRGB(0.75f, 1f, 1f); // Purple in HSV
+                            break;
+                        case ElementalType.Poison:
+                            damageText.color = Color.green;
+                            break;
+
+                        default:
+                            Debug.LogWarning($"Unhandled damage type: {DamageType}");
+                            damageText.color = Color.white; // Default color fallback
+                            break;
+                    }
+                    */
+
+                    switch (DamageType)
+                    {
+                        case "Normal":
+                            damageText.color = Color.white;
+                            break;
+
+                        case "Fire":
+                            damageText.color = Color.yellow;
+                            break;
+
+                        case "Ice":
+                            damageText.color = Color.cyan;
+                            break;
+
+                        case "Lightning":
+                            damageText.color = Color.HSVToRGB(0.75f, 1f, 1f); // Purple in HSV
+                            break;
+
+                        case "Poison":
+                            damageText.color = Color.green;
+                            break;
+
+                        default:
+                            Debug.LogWarning($"Unhandled damage type: {DamageType}");
+                            damageText.color = Color.white; // Default color fallback
+                            break;
+                    }
+
+                    if (isHeadShot)
+                    {
+                        damageText.color = Color.red; // Default color fallback
+                        hasbeenHeadshot = true;
+
+                    }
+
+                    damageText.text = MostRecentDamageNumber.ToString();
+                    //  Debug.Log($"Damage displayed: {damageText.text}");
+                }
+                else
+                {
+                    Debug.LogWarning("DamageNumber prefab does not have a TextMeshPro component.");
+                }
+
+                // Now apply the damage to the enemy
+                Health -= MostRecentDamageNumber;
+                Check = true;
+                // Debug.Log($"Damage dealt to enemy: {Damage}");
+          //  }
+
         }
 
 
@@ -1264,7 +1352,11 @@ namespace EnemyAi
 
         {
             yield return new WaitForSeconds(RandomDestroy);
-            Destroy(gameObject);
+            if (MassiveLoopClient.IsMasterClient)
+            {
+                Destroy(gameObject);
+            }
+            else { this.gameObject.SetActive(false); }
 
         }
 
