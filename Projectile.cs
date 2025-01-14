@@ -8,8 +8,10 @@ public class Projectile : MonoBehaviour
     private int headShotMultiplier;
     private GameObject hitEffect;
     private GameObject headShotEffect;
+    private string thisProjectileOwner;
 
-    public void Initialize(int damageMin, int damageMax, string elementalType, int headShotMultiplier, GameObject hitEffect, GameObject headShotEffect)
+
+    public void Initialize(int damageMin, int damageMax, string elementalType, int headShotMultiplier, GameObject hitEffect, GameObject headShotEffect, string Owner)
     {
         this.damageMin = damageMin;
         this.damageMax = damageMax;
@@ -17,6 +19,7 @@ public class Projectile : MonoBehaviour
         this.headShotMultiplier = headShotMultiplier;
         this.hitEffect = hitEffect;
         this.headShotEffect = headShotEffect;
+        this.thisProjectileOwner = Owner;
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -37,11 +40,11 @@ public class Projectile : MonoBehaviour
                 {
                     Debug.Log("Headshot detected");
                     Instantiate(headShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                    enemyScript.EnemyDamage(Random.Range(damageMin * headShotMultiplier, damageMax * headShotMultiplier), elementalType, true);
+                    enemyScript.EnemyDamage(Random.Range(damageMin * headShotMultiplier, damageMax * headShotMultiplier), elementalType, true, thisProjectileOwner);
                 }
                 else
                 {
-                    enemyScript.EnemyDamage(Random.Range(damageMin, damageMax), elementalType, false);
+                    enemyScript.EnemyDamage(Random.Range(damageMin, damageMax), elementalType, false, thisProjectileOwner);
                 }
             }
         }
@@ -61,7 +64,7 @@ public class Projectile : MonoBehaviour
                 {
                     Debug.Log("Overall parent EnemyAi found for the head!");
                     Instantiate(headShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                    enemyScript.EnemyDamage(Random.Range(damageMin * headShotMultiplier, damageMax * headShotMultiplier), elementalType, true);
+                    enemyScript.EnemyDamage(Random.Range(damageMin * headShotMultiplier, damageMax * headShotMultiplier), elementalType, true, thisProjectileOwner);
                 }
             }
         }

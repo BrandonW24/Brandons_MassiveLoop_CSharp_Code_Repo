@@ -1232,8 +1232,8 @@ namespace EnemyAi
 
 
 
-
-        public void EnemyDamage(int Damage, string DamageType, bool isHeadShot)
+        //TODO : the enemy should target the player that damaged them.
+        public void EnemyDamage(int Damage, string DamageType, bool isHeadShot, string FromWho)
         {
             // Instantiate the damage number prefab at the HealthBarUI position
             //   if (MassiveLoopClient.IsMasterClient)
@@ -1326,6 +1326,8 @@ namespace EnemyAi
 
                 // Now apply the damage to the enemy
                 Health -= MostRecentDamageNumber;
+                AssignPlayerCharacter(MassiveLoopRoom.FindPlayerByName(FromWho));
+                Debug.Log($"Enemy targeting player that attacked me. {(FromWho)}");
                 Check = true;
                 // Debug.Log($"Damage dealt to enemy: {Damage}");
           //  }

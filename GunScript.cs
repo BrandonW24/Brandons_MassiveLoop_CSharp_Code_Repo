@@ -82,6 +82,7 @@ public class GunScript : MonoBehaviour
         int headshotMultiplier = (int)args[3]; // Headshot multiplier as an argument
         int randomSeed = (int)args[4]; // Seed passed to sync random numbers
         GameObject enemy = (GameObject)args[5];
+        string currentUserName = (string)args[6];
 
         // Initialize the Unity random generator with the provided seed
         UnityEngine.Random.InitState(randomSeed);
@@ -98,9 +99,10 @@ public class GunScript : MonoBehaviour
         EnemyAi.EnemyAi enemyAI = (EnemyAi.EnemyAi)enemy.GetComponent(typeof(EnemyAi.EnemyAi));
         if (enemyAI != null)
         {
-            enemyAI.EnemyDamage(damage, ElementalTypePlaceholder, isHeadshot);
+            enemyAI.EnemyDamage(damage, ElementalTypePlaceholder, isHeadshot, currentUserName);
         }
     }
+
 
 
 
@@ -159,7 +161,7 @@ public class GunScript : MonoBehaviour
                 Projectile projectileScript = bullet.GetComponent(typeof(Projectile)) as Projectile;
                 if (projectileScript != null)
                 {
-                    projectileScript.Initialize(DamageRange_min, DamageRange_max, ElementalTypePlaceholder, HeadShotMultiplyer, ProjectileHitEffect, HeadShotEffect);
+                    projectileScript.Initialize(DamageRange_min, DamageRange_max, ElementalTypePlaceholder, HeadShotMultiplyer, ProjectileHitEffect, HeadShotEffect, currentGunUser.NickName);
                 }
             }
             else
@@ -475,20 +477,30 @@ public class GunScript : MonoBehaviour
     void HandleEnemyHit(GameObject enemy, RaycastHit hit)
     {
         EnemyAi.EnemyAi checkForReference = (EnemyAi.EnemyAi)enemy.GetComponent(typeof(EnemyAi.EnemyAi));
+        Debug.Log("Enemy hit!");
         if (checkForReference != null)
         {
             bool isHeadshot = enemy.name.Contains("Head");
             int randomSeed = UnityEngine.Random.Range(0, int.MaxValue); // Generate a random seed
 
             // Trigger the OnRollForDamage event with the seed
+            /*
             this.InvokeNetwork(EVENT_ROLL_FOR_DAMAGE, EventTarget.All, null,
                 DamageRange_min,
                 DamageRange_max,
                 isHeadshot,
                 HeadShotMultiplyer,
                 randomSeed,
-                enemy
+                enemy,
+                currentGunUser.NickName
             );
+            */
+
+            if (checkForReference != null)
+            {
+                checkForReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min, DamageRange_max), ElementalTypePlaceholder, false, currentGunUser.NickName);
+
+            }
 
             if (isHeadshot)
             {
@@ -513,20 +525,43 @@ public class GunScript : MonoBehaviour
             EnemyAi.EnemyAi enemyReference = (EnemyAi.EnemyAi)parentTransform.GetComponent(typeof(EnemyAi.EnemyAi));
             if (enemyReference != null)
             {
+                Debug.Log("Headshot detected!");
+
+                // Generate a random seed for consistent damage calculation across clients
+                int randomSeed = UnityEngine.Random.Range(0, int.MaxValue);
+                /*
                 // Trigger the OnRollForDamage event for all clients
                 this.InvokeNetwork(EVENT_ROLL_FOR_DAMAGE, EventTarget.All, null,
-                    DamageRange_min,             // Minimum damage range
-                    DamageRange_max,             // Maximum damage range
-                    true,                        // Headshot (always true for this function)
-                    HeadShotMultiplyer,          // Headshot multiplier
-                    parentTransform.gameObject   // Pass the enemy GameObject reference
+                    DamageRange_min,               // Minimum damage range
+                    DamageRange_max,               // Maximum damage range
+                    1,                             // Headshot (pass as int: 1 = true)
+                    HeadShotMultiplyer,            // Headshot multiplier
+                    randomSeed,                    // Random seed for sync
+                    parentTransform.gameObject,    // Enemy GameObject reference
+                    currentGunUser.NickName        // Username of the current gun user
                 );
+                */
+             //   EnemyAi.EnemyAi enemyAI = (EnemyAi.EnemyAi)enemy.GetComponent(typeof(EnemyAi.EnemyAi));
+                if (enemyReference != null)
+                {
+                    enemyReference.EnemyDamage(UnityEngine.Random.Range(DamageRange_min * HeadShotMultiplyer, DamageRange_max * HeadShotMultiplyer), ElementalTypePlaceholder, true, currentGunUser.NickName);
 
-                // Instantiate the headshot effect
+                }
+
+                // Instantiate the headshot effect at the hit point
                 Instantiate(HeadShotEffect, hit.point, Quaternion.LookRotation(hit.normal));
             }
+            else
+            {
+                Debug.LogWarning($"EnemyAI component not found on the parent object '{parentTransform.gameObject.name}'.");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No valid parent object found for the headshot.");
         }
     }
+
 
 
     void ApplyRecoil()
