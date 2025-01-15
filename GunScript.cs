@@ -34,8 +34,6 @@ public class GunScript : MonoBehaviour
     public enum FireMode { Automatic, SemiAutomatic, Shotgun }
     public FireMode currentFireMode;
 
-    public string FireMode_PlaceHolder;
-
     public bool useProjectile = false;
     public GameObject bulletPrefab;
     public float projectileForce = 500f;
@@ -237,9 +235,9 @@ public class GunScript : MonoBehaviour
             {
                 if (Time.time >= nextFireTime && ammo > 0)
                 {
-                    switch (FireMode_PlaceHolder)
+                    switch (currentFireMode)
                     {
-                        case "Automatic":
+                        case FireMode.Automatic:
                             if (!isFiring)
                             {
                                 isFiring = true; // Start firing automatically
@@ -247,7 +245,7 @@ public class GunScript : MonoBehaviour
                             }
                             break;
 
-                        case "SemiAutomatic":
+                        case FireMode.SemiAutomatic:
                             if (!triggerHeld)
                             {
                                 triggerHeld = true; // Ensure one fire per click
@@ -255,7 +253,7 @@ public class GunScript : MonoBehaviour
                             }
                             break;
 
-                        case "Shotgun":
+                        case FireMode.Shotgun:
                             if (!triggerHeld)
                             {
                                 triggerHeld = true; // Ensure one fire per click
@@ -275,9 +273,9 @@ public class GunScript : MonoBehaviour
             {
                 if (Time.time >= nextFireTime && ammo > 0)
                 {
-                    switch (FireMode_PlaceHolder)
+                    switch (currentFireMode)
                     {
-                        case "Automatic":
+                        case FireMode.Automatic:
                             if (!isFiring)
                             {
                                 isFiring = true; // Start firing automatically
@@ -285,7 +283,7 @@ public class GunScript : MonoBehaviour
                             }
                             break;
 
-                        case "SemiAutomatic":
+                        case FireMode.SemiAutomatic:
                             if (!triggerHeld)
                             {
                                 triggerHeld = true; // Ensure one fire per click
@@ -293,7 +291,7 @@ public class GunScript : MonoBehaviour
                             }
                             break;
 
-                        case "Shotgun":
+                        case FireMode.Shotgun:
                             if (!triggerHeld)
                             {
                                 triggerHeld = true; // Ensure one fire per click
@@ -312,9 +310,9 @@ public class GunScript : MonoBehaviour
             {
                 if (Time.time >= nextFireTime && ammo > 0)
                 {
-                    switch (FireMode_PlaceHolder)
+                    switch (currentFireMode)
                     {
-                        case "Automatic":
+                        case FireMode.Automatic:
                             if (!isFiring)
                             {
                                 isFiring = true; // Start firing automatically
@@ -322,7 +320,7 @@ public class GunScript : MonoBehaviour
                             }
                             break;
 
-                        case "SemiAutomatic":
+                        case FireMode.SemiAutomatic:
                             if (!triggerHeld)
                             {
                                 triggerHeld = true; // Ensure one fire per click
@@ -330,7 +328,7 @@ public class GunScript : MonoBehaviour
                             }
                             break;
 
-                        case "Shotgun":
+                        case FireMode.Shotgun:
                             if (!triggerHeld)
                             {
                                 triggerHeld = true; // Ensure one fire per click
